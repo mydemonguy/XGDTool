@@ -110,3 +110,7 @@ target_link_libraries(xgdtool PRIVATE
 )
 
 target_compile_definitions(xgdtool PRIVATE ANDROID_BUILD=1)
+
+# Android 15+ devices may use 16 KB memory pages; align LOAD segments to 16 KB
+# (NDK r28+ does this by default, older NDKs need it explicitly).
+target_link_options(xgdtool PRIVATE "-Wl,-z,max-page-size=16384")

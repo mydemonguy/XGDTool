@@ -300,7 +300,7 @@ std::vector<std::filesystem::path> GoDWriter::write_data_files(const std::filesy
 {
     ImageReader& image_reader = *image_reader_;
     uint32_t sector_offset = static_cast<uint32_t>(image_reader.image_offset() / Xiso::SECTOR_SIZE);
-    uint32_t last_sector = image_reader.total_sectors();
+    uint32_t last_sector = image_reader.total_sectors() - 1; // inclusive index of the last sector
     const std::unordered_set<uint32_t>* data_sectors;
 
     if (scrub) 
@@ -309,11 +309,11 @@ std::vector<std::filesystem::path> GoDWriter::write_data_files(const std::filesy
         last_sector = std::min(image_reader.max_data_sector(), last_sector);
     }
 
-    uint32_t total_out_sectors = last_sector - sector_offset;
+    uint32_t total_out_sectors = last_sector - sector_offset + 1;
     uint32_t total_out_data_blocks = num_blocks(static_cast<size_t>(total_out_sectors) * Xiso::SECTOR_SIZE);
     uint32_t total_out_parts = num_parts(total_out_data_blocks);
 
-    prog_total_ = last_sector - sector_offset;
+    prog_total_ = last_sector - sector_offset + 1;
     prog_processed_ = 0;
 
     XGDLog(Debug) << "Total data blocks: " << total_out_data_blocks << " total parts: " << total_out_parts << XGDLog::Endl;  
@@ -429,13 +429,15 @@ void GoDWriter::write_hashtables(const std::vector<std::filesystem::path>& part_
 
         for (uint32_t i = 0; i < sub_hashtables; ++i) 
         {
+            // Skip (and count) this sub-hashtable block first, so blocks_in_sht
+            // only counts the data blocks that actually follow it.
+            current_file.seekp(GoD::BLOCK_SIZE, std::ios::cur);
+            blocks_left--;
+
             uint32_t blocks_in_sht = std::min(static_cast<uint32_t>(GoD::DATA_BLOCKS_PER_SHT), blocks_left);
             std::vector<char> sht_data_buffer(blocks_in_sht * GoD::BLOCK_SIZE, 0);
             std::vector<SHA1Hash> sub_hashtable;
             sub_hashtable.reserve(blocks_in_sht);
-
-            current_file.seekp(GoD::BLOCK_SIZE, std::ios::cur);
-            blocks_left--;
 
             current_file.read(sht_data_buffer.data(), sht_data_buffer.size());
             if (current_file.fail()) 
