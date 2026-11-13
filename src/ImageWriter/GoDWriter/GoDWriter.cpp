@@ -300,7 +300,7 @@ std::vector<std::filesystem::path> GoDWriter::write_data_files(const std::filesy
 {
     ImageReader& image_reader = *image_reader_;
     uint32_t sector_offset = static_cast<uint32_t>(image_reader.image_offset() / Xiso::SECTOR_SIZE);
-    uint32_t last_sector = image_reader.total_sectors();
+    uint32_t last_sector = image_reader.total_sectors() - 1;
     const std::unordered_set<uint32_t>* data_sectors;
 
     if (scrub) 
