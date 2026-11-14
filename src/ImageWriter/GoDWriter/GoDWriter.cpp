@@ -586,6 +586,37 @@ void GoDWriter::write_live_header(const std::filesystem::path& out_header_path, 
         out_str.write(title_helper_.title_icon().data(), title_helper_.title_icon().size());
     }
 
+    // The empty header template only holds placeholder bytes in the SVOD volume
+    // descriptor. Fill in the real data block count and clear the flags/version
+    // bytes (the same values iso2god writes); without this the console lists the
+    // game but cannot mount its data files.
+    uint32_t total_data_blocks = 0;
+    for (auto& part_path : out_part_paths)
+    {
+        uint64_t file_blocks = num_blocks(std::filesystem::file_size(part_path));
+        uint64_t blocks = file_blocks - 1; // minus the master hashtable block
+        uint64_t full_shts = blocks / (GoD::DATA_BLOCKS_PER_SHT + 1);
+        uint64_t remainder = blocks % (GoD::DATA_BLOCKS_PER_SHT + 1);
+        total_data_blocks += static_cast<uint32_t>((full_shts * GoD::DATA_BLOCKS_PER_SHT) + (remainder ? remainder - 1 : 0));
+    }
+
+    const char zero_byte = 0;
+    out_str.seekp(0x35B, std::ios::beg);
+    out_str.write(&zero_byte, 1);
+    out_str.seekp(0x35F, std::ios::beg);
+    out_str.write(&zero_byte, 1);
+    out_str.seekp(0x391, std::ios::beg);
+    out_str.write(&zero_byte, 1);
+
+    const char svod_block_counts[5] = {
+        static_cast<char>((total_data_blocks >> 16) & 0xFF), // data block count, 24-bit big-endian
+        static_cast<char>((total_data_blocks >> 8) & 0xFF),
+        static_cast<char>(total_data_blocks & 0xFF),
+        0, 0                                                 // blocks not allocated, 16-bit
+    };
+    out_str.seekp(0x392, std::ios::beg);
+    out_str.write(svod_block_counts, sizeof(svod_block_counts));
+
     SHA1Hash header_hash = compute_sha1(out_str.str().c_str() + 0x344, out_str.str().size() - 0x344);
 
     out_str.seekp(0x32C, std::ios::beg);
